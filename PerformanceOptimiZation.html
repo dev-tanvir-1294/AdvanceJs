@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Advanced Dashboard Demo</title>
+
+    <style>
+      body {
+        font-family: Arial;
+        margin: 0;
+        background: #f4f6f9;
+      }
+
+      header {
+        background: #1e293b;
+        color: white;
+        padding: 15px;
+        font-size: 20px;
+      }
+
+      #searchBox {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        font-size: 16px;
+        outline: none;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: auto;
+        padding: 20px;
+      }
+
+      .product {
+        background: white;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        padding: 15px;
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        opacity: 0;
+        transform: translateY(20px);
+        transition: all 0.4s;
+      }
+
+      .product.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .product img {
+        width: 120px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 8px;
+      }
+
+      .loader {
+        text-align: center;
+        padding: 20px;
+        color: #666;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      Product Dashboard
+      <input id="searchBox" placeholder="Search product..." />
+    </header>
+
+    <div class="container" id="products"></div>
+
+    <div class="loader" id="loader">Loading...</div>
+
+    <script>
+      /* ------------------ UTILITIES ------------------ */
+
+      function debounce(fn, delay) {
+        let timer;
+        return function (...args) {
+          clearTimeout(timer);
+          timer = setTimeout(() => fn.apply(this, args), delay);
+        };
+      }
+
+      function throttle(fn, limit) {
+        let waiting = false;
+        return function (...args) {
+          if (!waiting) {
+            fn.apply(this, args);
+            waiting = true;
+            setTimeout(() => (waiting = false), limit);
+          }
+        };
+      }
+
+      /* ------------------ MOCK API ------------------ */
+
+      let page = 1;
+
+      function fakeAPI(page, search = "") {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            const products = [];
+
+            for (let i = 1; i <= 10; i++) {
+              let id = (page - 1) * 10 + i;
+
+              products.push({
+                name: "Product " + id,
+                price: (Math.random() * 1000).toFixed(2),
+                image: `https://picsum.photos/seed/${id}/200/200`,
+              });
+            }
+
+            if (search) {
+              resolve(
+                products.filter((p) => p.name.toLowerCase().includes(search)),
+              );
+            } else {
+              resolve(products);
+            }
+          }, 500);
+        });
+      }
+
+      /* ------------------ RENDER PRODUCTS ------------------ */
+
+      const container = document.getElementById("products");
+      const loader = document.getElementById("loader");
+
+      function renderProducts(products) {
+        products.forEach((p) => {
+          const div = document.createElement("div");
+          div.className = "product";
+
+          div.innerHTML = `
+
+<img data-src="${p.image}" alt="">
+<div>
+<h3>${p.name}</h3>
+<p>$${p.price}</p>
+</div>
+
+`;
+
+          container.appendChild(div);
+        });
+
+        observeImages();
+        observeCards();
+      }
+
+      /* ------------------ LAZY IMAGE LOADING ------------------ */
+
+      const imgObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const img = entry.target;
+            img.src = img.dataset.src;
+            imgObserver.unobserve(img);
+          }
+        });
+      });
+
+      function observeImages() {
+        document.querySelectorAll("img[data-src]").forEach((img) => {
+          imgObserver.observe(img);
+        });
+      }
+
+      /* ------------------ SCROLL ANIMATION ------------------ */
+
+      const cardObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+          }
+        });
+      });
+
+      function observeCards() {
+        document.querySelectorAll(".product").forEach((card) => {
+          cardObserver.observe(card);
+        });
+      }
+
+      /* ------------------ INFINITE SCROLL ------------------ */
+
+      async function loadProducts() {
+        loader.style.display = "block";
+
+        const data = await fakeAPI(page);
+
+        renderProducts(data);
+
+        loader.style.display = "none";
+
+        page++;
+      }
+
+      loadProducts();
+
+      window.addEventListener(
+        "scroll",
+        throttle(() => {
+          if (
+            window.innerHeight + window.scrollY >=
+            document.body.offsetHeight - 300
+          ) {
+            loadProducts();
+          }
+        }, 200),
+      );
+
+      /* ------------------ SEARCH WITH DEBOUNCE ------------------ */
+
+      const searchBox = document.getElementById("searchBox");
+
+      searchBox.addEventListener(
+        "input",
+        debounce(async (e) => {
+          const value = e.target.value.toLowerCase();
+
+          container.innerHTML = "";
+          page = 1;
+
+          const data = await fakeAPI(page, value);
+
+          renderProducts(data);
+        }, 500),
+      );
+    </script>
+  </body>
+</html>
